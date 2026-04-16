@@ -454,3 +454,49 @@ The container is designed to deploy to AWS App Runner, Render, or any container 
 - Portfolio visualization: heatmap renders with correct colors, P&L chart has data points
 - AI chat (mocked): send a message, receive a response, trade execution appears inline
 - SSE resilience: disconnect and verify reconnection
+
+---
+
+## 13. Document Review — Questions, Clarifications & Feedback
+
+### Questions
+
+1. **Two `db/` directories (§4)** — `backend/db/` holds schema SQL, while the top-level `db/` is the runtime volume mount. The directory tree shows `backend/db/` as a child of `backend/`, but the Key Boundaries prose treats them separately. Could these be renamed to reduce confusion (e.g., `backend/sql/` for schema files)?
+
+2. **SSE stream scope (§6)** — The stream pushes "all tickers known to the system." Is "known to the system" defined as the current watchlist contents, or a superset? When a ticker is added to or removed from the watchlist, does the stream automatically adapt, or must the client reconnect to start/stop receiving that ticker's prices?
+
+3. **LLM model name (§9)** — The model is listed as `openrouter/openai/gpt-oss-120b`, but the section also references Cerebras as the inference provider. Should this be a Cerebras-native model routed through OpenRouter (e.g., `openrouter/cerebras/...`)? The cerebras-inference skill exists specifically for fast Cerebras inference — please confirm the intended model string.
+
+4. **Failed LLM trades (§9)** — When a trade in the LLM's response fails validation (insufficient cash, etc.), the error is "included in the chat response." Does the backend attempt a partial fill, skip the trade, or halt all trades in the batch? Should the LLM be given a chance to retry with corrected parameters in the same request cycle?
+
+5. **Portfolio snapshot cold start (§7)** — Snapshots use `cash + sum(quantity * current_price)`. What happens if the in-memory price cache is empty when a snapshot is recorded (e.g., immediately on startup before the first simulator tick)? Is a snapshot skipped, or recorded with zero/stale prices?
+
+6. **Mock LLM response contract (§9)** — The mock mode returns "deterministic mock responses," but the mock schema is not defined. What does the mock always return? A fixed message with no trades? A fixed buy trade? This needs to be specified for E2E test authors to write reliable assertions.
+
+7. **Simulator vs. SSE cadence alignment (§6)** — Both the simulator and the SSE push are described as "~500ms." Are these synchronized (one drives the other) or independently timed? Independent timers could cause a SSE tick to read stale data if the simulator hasn't updated yet.
+
+---
+
+### Feedback
+
+- **No `.env` validation on startup (§5)** — The plan doesn't specify what happens if `OPENROUTER_API_KEY` is missing and `LLM_MOCK` is `false`. The backend should fail fast or return a clear error (not a cryptic `401`) when the chat endpoint is called without a key. Consider logging a startup warning.
+
+- **Charting library ambiguity (§10)** — Lightweight Charts and Recharts are very different (canvas vs. SVG, financial API vs. general). Lightweight Charts is strongly preferred for a trading terminal (it handles time-series financial data natively with OHLC support and is far more performant). Recommend locking this choice to avoid diverging implementations.
+
+- **Start script rebuild behavior (§11)** — The script only rebuilds if the image doesn't exist or `--build` is passed. Developers won't automatically pick up code changes. Adding a comment in the script (or README) clarifying "re-run with `--build` after any code change" would prevent confusion.
+
+- **`GET /api/portfolio` call count on page load (§8)** — On first load, the frontend likely needs both `GET /api/portfolio` and `GET /api/portfolio/history`. Consider whether these can be combined (e.g., `GET /api/portfolio?include_history=true`) to reduce round trips, especially on a cold start.
+
+- **Newly-added ticker price latency (§6, §8)** — After `POST /api/watchlist`, the new ticker has no price in the SSE stream until the next simulator/poller cycle. The frontend should handle a "price pending" state gracefully (show a spinner or `—` instead of `$0`).
+
+---
+
+### Simplification Opportunities
+
+- **`user_id` column on all tables (§7)** — Since single-user is an explicit constraint, all SQL queries will always filter `WHERE user_id = 'default'`. Consider documenting this as a convention and ensuring no code accidentally skips the filter (which would be a no-op now but a bug if multi-user is ever added).
+
+- **`portfolio_snapshots` granularity (§7)** — Snapshots every 30 seconds plus on every trade could produce a lot of rows quickly. A retention policy (e.g., keep only the last 24 hours, or downsample older data) should be noted even if not implemented in v1 — otherwise the table grows unbounded.
+
+- **SSE payload size (§6)** — Broadcasting all tickers on every tick regardless of whether their price changed is simple but wasteful. If the watchlist grows (the user can add tickers), sending only changed prices would scale better. Worth noting as a known trade-off rather than a surprise.
+
+- **E2E Playwright base image (§12)** — Specifying the recommended Docker image for the Playwright container (e.g., `mcr.microsoft.com/playwright:v1.x-jammy`) in the plan would save the Testing agent from having to discover this independently.
