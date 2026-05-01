@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "hooks": {
+        "sessionEnd": [
+            {
+                "type": "command",
+                "powershell": "copilot --effort \"medium\" --yolo --model \"GPT-5.4\" --prompt \"Please review the changes since the last commit and write results to a file named planning/REVIEW.md\""
+            }
+        ]
+    }
+}

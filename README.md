@@ -1,62 +1,55 @@
 # FinAlly — AI Trading Workstation
 
-A visually stunning AI-powered trading workstation that streams live market data, simulates portfolio trading, and integrates an LLM chat assistant that can analyze positions and execute trades via natural language.
-
-Built entirely by coding agents as a capstone project for an agentic AI coding course.
+A Bloomberg-style trading terminal with an AI copilot, built as a capstone for an agentic AI coding course. Entirely constructed by orchestrated coding agents.
 
 ## Features
 
-- **Live price streaming** via SSE with green/red flash animations
-- **Simulated portfolio** — $10k virtual cash, market orders, instant fills
-- **Portfolio visualizations** — heatmap (treemap), P&L chart, positions table
-- **AI chat assistant** — analyzes holdings, suggests and auto-executes trades
-- **Watchlist management** — track tickers manually or via AI
-- **Dark terminal aesthetic** — Bloomberg-inspired, data-dense layout
-
-## Architecture
-
-Single Docker container serving everything on port 8000:
-
-- **Frontend**: Next.js (static export) with TypeScript and Tailwind CSS
-- **Backend**: FastAPI (Python/uv) with SSE streaming
-- **Database**: SQLite with lazy initialization
-- **AI**: LiteLLM → OpenRouter (Cerebras inference) with structured outputs
-- **Market data**: Built-in GBM simulator (default) or Massive API (optional)
+- **Live price stream** — 10 tickers updating every ~500ms with green/red flash animations
+- **Sparkline charts** — per-ticker price history built from the SSE stream
+- **$10,000 virtual portfolio** — instant market orders, no fees, no login required
+- **Portfolio heatmap** — treemap sized by position weight, colored by P&L
+- **AI chat assistant** — ask about your portfolio, get analysis, or have the AI execute trades and manage your watchlist via natural language
 
 ## Quick Start
 
 ```bash
-# Clone and configure
+# 1. Configure environment
 cp .env.example .env
-# Add your OPENROUTER_API_KEY to .env
+# Edit .env and add your OPENROUTER_API_KEY
 
-# Run with Docker
-docker build -t finally .
-docker run -v finally-data:/app/db -p 8000:8000 --env-file .env finally
-
-# Open http://localhost:8000
+# 2. Launch
+./scripts/start_mac.sh        # macOS / Linux
+.\scripts\start_windows.ps1   # Windows (PowerShell)
 ```
+
+Open **http://localhost:8000**. No real money, no signup.
+
+> No `MASSIVE_API_KEY`? The built-in market simulator runs by default — no external API needed.
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | Yes | OpenRouter API key for AI chat |
-| `MASSIVE_API_KEY` | No | Massive (Polygon.io) key for real market data; omit to use simulator |
-| `LLM_MOCK` | No | Set `true` for deterministic mock LLM responses (testing) |
+| `OPENROUTER_API_KEY` | ✅ | LLM chat via OpenRouter (Cerebras) |
+| `MASSIVE_API_KEY` | No | Real market data; simulator used if absent |
+| `LLM_MOCK` | No | `true` for deterministic mock responses (CI/testing) |
 
-## Project Structure
+## Architecture
+
+Single Docker container on port `8000`:
 
 ```
-finally/
-├── frontend/    # Next.js static export
-├── backend/     # FastAPI uv project
-├── planning/    # Project documentation and agent contracts
-├── test/        # Playwright E2E tests
-├── db/          # SQLite volume mount (runtime)
-└── scripts/     # Start/stop helpers
+FastAPI (Python / uv)
+├── /api/*         REST endpoints
+├── /api/stream/*  SSE price streaming
+└── /*             Serves static Next.js export
+
+SQLite  (volume-mounted at db/finally.db)
+Background task: GBM market simulator or Massive API polling
 ```
+
+**Stack:** Next.js (TypeScript) · FastAPI · SQLite · SSE · LiteLLM / OpenRouter · Docker
 
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE)
